@@ -1,6 +1,6 @@
 export const CONFIG = {
     // 服务器配置
-    SERVER_URL: window.location.hostname === 'localhost' ? 'http://localhost:3000' : `${window.location.protocol}//${window.location.hostname}:3000`,
+    SERVER_URL: 'http://47.122.124.151:3000',
     
     // 实验参数
     DEFAULT_EXPERIMENT_DURATION: 300000, // 5分钟
