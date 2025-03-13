@@ -1,0 +1,17 @@
+{
+  "name": "crowd-optimization-frontend",
+  "version": "1.0.0",
+  "description": "人群寻优协作实验平台前端",
+  "main": "index.js",
+  "scripts": {
+    "start": "http-server",
+    "dev": "http-server"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.2",
+    "d3": "^7.8.5"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+} 
