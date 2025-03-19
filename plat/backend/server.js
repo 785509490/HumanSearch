@@ -400,6 +400,37 @@ io.on('connection', (socket) => {
         });
     });
 
+    // 处理全局最优点更新
+    socket.on('update-global-optimal', (data) => {
+        if (socket !== currentExperiment.adminSocket) {
+            console.log('非管理员尝试更新全局最优点');
+            return;
+        }
+        
+        console.log('更新全局最优点:', data);
+        currentExperiment.globalOptimal = data;
+        
+        // 重新计算所有参与者的信号值
+        currentExperiment.participants.forEach((participant) => {
+            participant.signalValue = calculateSignalValue(participant.position);
+        });
+        
+        // 广播更新给所有客户端
+        io.emit('global-optimal-update', {
+            globalOptimal: currentExperiment.globalOptimal
+        });
+        
+        // 广播更新后的参与者信号值
+        currentExperiment.participants.forEach((participant) => {
+            io.emit('player-update', {
+                participantId: participant.id,
+                name: participant.name,
+                position: participant.position,
+                signalValue: participant.signalValue
+            });
+        });
+    });
+
     // 断开连接处理
     socket.on('disconnect', () => {
         // 如果是管理员断开连接

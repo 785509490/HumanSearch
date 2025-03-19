@@ -341,6 +341,21 @@ function setupSocketListeners() {
         console.log('参与者数量更新:', count);
         updateParticipantCount(count);
     });
+
+    // 监听全局最优点更新
+    socket.on('global-optimal-update', (data) => {
+        console.log('收到全局最优点更新:', data);
+        if (game) {
+            // 更新游戏中的全局最优点位置
+            game.globalOptimal = data.globalOptimal;
+            
+            // 重新计算当前玩家的信号值
+            game.player.signalValue = game.calculateSignalValue(game.player.x, game.player.y);
+            
+            // 更新热力图
+            game.drawHeatmap();
+        }
+    });
 }
 
 function setupExperimentUI(data) {
