@@ -356,6 +356,23 @@ function setupSocketListeners() {
             game.drawHeatmap();
         }
     });
+
+    // 监听局部最优点更新
+    socket.on('local-optima-update', (data) => {
+        console.log('收到局部最优点更新:', data);
+        if (game) {
+            game.localOptima = data.localOptima;
+            game.drawHeatmap();
+        }
+    });
+
+    // 添加实验数据清除成功的监听器
+    socket.on('experiment-data-cleared', (data) => {
+        console.log('实验数据已清除:', data);
+        alert('实验数据已成功清除！');
+        // 重新加载页面以刷新状态
+        window.location.reload();
+    });
 }
 
 function setupExperimentUI(data) {
@@ -454,6 +471,9 @@ function setupExperimentUI(data) {
                         <button id="start-experiment" data-action="start-experiment">开始实验</button>
                         <button id="end-experiment" data-action="end-experiment">结束实验</button>
                         <button id="export-data" data-action="export-data">导出数据</button>
+                        <button id="perturb-local-optima" data-action="perturb-local-optima">随机扰动局部最优点</button>
+                        <button id="randomize-global-optimal" data-action="randomize-global-optimal">随机变化全局最优点</button>
+                        <button id="clear-experiment-data" data-action="clear-experiment-data" class="danger-button">清除实验数据</button>
                     </div>
                 </div>
                 
@@ -547,39 +567,9 @@ function setupExperimentUI(data) {
                         break;
                     case 'start-experiment':
                         console.log('管理员点击开始实验');
-                        // 获取全局最优点坐标
-                        const optimalX = document.getElementById('optimal-x');
-                        const optimalY = document.getElementById('optimal-y');
-                        
-                        console.log('全局最优点输入框:', { 
-                            optimalXExists: !!optimalX, 
-                            optimalYExists: !!optimalY,
-                            optimalXValue: optimalX ? optimalX.value : null,
-                            optimalYValue: optimalY ? optimalY.value : null
-                        });
-                        
-                        // 默认坐标值
-                        let x = 400;
-                        let y = 300;
-                        
-                        // 如果找到输入框，则使用输入的值
-                        if (optimalX && optimalY) {
-                            x = parseInt(optimalX.value) || x;
-                            y = parseInt(optimalY.value) || y;
-                            console.log('发送全局最优点坐标:', { x, y });
-                            
-                            // 更新游戏中的全局最优点位置
-                            if (game) {
-                                game.updateGlobalOptimal(x, y);
-                            }
-                        } else {
-                            console.warn('未找到全局最优点输入框，使用默认值');
-                        }
-                        
                         // 发送开始实验请求
                         socket.emit('start-experiment', { 
-                            experimentId: data.experimentId,
-                            globalOptimal: { x, y }
+                            experimentId: data.experimentId
                         });
                         break;
                     case 'end-experiment':
@@ -587,6 +577,17 @@ function setupExperimentUI(data) {
                         break;
                     case 'export-data':
                         socket.emit('export-data', { experimentId: data.experimentId });
+                        break;
+                    case 'perturb-local-optima':
+                        socket.emit('perturb-local-optima');
+                        break;
+                    case 'randomize-global-optimal':
+                        socket.emit('randomize-global-optimal');
+                        break;
+                    case 'clear-experiment-data':
+                        if (confirm('确定要清除该实验的所有数据吗？此操作不可恢复！')) {
+                            socket.emit('clear-experiment-data', { experimentId: data.experimentId });
+                        }
                         break;
                 }
             };
