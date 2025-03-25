@@ -85,7 +85,11 @@ let currentExperiment = {
         { x: 0.8 * 800, y: 0.3 * 600, baseX: 0.8 * 800, baseY: 0.3 * 600, strength: 0.5 },
         { x: 0.3 * 800, y: 0.8 * 600, baseX: 0.3 * 800, baseY: 0.8 * 600, strength: 0.3 },
         { x: 0.7 * 800, y: 0.7 * 600, baseX: 0.7 * 800, baseY: 0.7 * 600, strength: 0.45 }
-    ]
+    ],
+    // 添加最后记录时间映射
+    lastRecordTime: new Map(),
+    // 添加最后广播时间映射
+    lastBroadcastTime: new Map()
 };
 
 // 计算信号值函数 - 多峰函数
@@ -416,30 +420,50 @@ io.on('connection', (socket) => {
                     return;
                 }
 
-                const stmt = db.prepare(`
-                    INSERT INTO movements (participant_id, x, y, signal_value)
-                    VALUES (?, ?, ?, ?)
-                `);
-                stmt.run(participant.id, x, y, signalValue);
+                // 获取当前时间
+                const currentTime = Date.now();
+                const lastRecordTime = currentExperiment.lastRecordTime.get(participant.id) || 0;
+                
+                // 检查是否已经过了0.1秒
+                if (currentTime - lastRecordTime >= 100) {
+                    const stmt = db.prepare(`
+                        INSERT INTO movements (participant_id, x, y, signal_value)
+                        VALUES (?, ?, ?, ?)
+                    `);
+                    stmt.run(participant.id, x, y, signalValue);
+                    
+                    // 更新最后记录时间
+                    currentExperiment.lastRecordTime.set(participant.id, currentTime);
+                }
             } catch (error) {
                 console.error('记录移动数据时出错:', error);
             }
         }
 
-        // 广播位置更新给所有参与者
-        io.emit('player-update', {
-            participantId: participant.id,
-            name: participant.name,
-            position: participant.position,
-            signalValue: participant.signalValue
-        });
+        // 获取当前时间
+        const currentTime = Date.now();
+        const lastBroadcastTime = currentExperiment.lastBroadcastTime.get(participant.id) || 0;
         
-        console.log('广播位置更新:', {
-            participantId: participant.id,
-            name: participant.name,
-            position: participant.position,
-            signalValue: participant.signalValue
-        });
+        // 检查是否已经过了0.2秒（广播频率设为0.2秒）
+        if (currentTime - lastBroadcastTime >= 200) {
+            // 广播位置更新给所有参与者
+            io.emit('player-update', {
+                participantId: participant.id,
+                name: participant.name,
+                position: participant.position,
+                signalValue: participant.signalValue
+            });
+            
+            // 更新最后广播时间
+            currentExperiment.lastBroadcastTime.set(participant.id, currentTime);
+            
+            console.log('广播位置更新:', {
+                participantId: participant.id,
+                name: participant.name,
+                position: participant.position,
+                signalValue: participant.signalValue
+            });
+        }
     });
 
     // 管理员控制 - 设置感知范围
