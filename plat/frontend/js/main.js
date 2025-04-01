@@ -28,52 +28,133 @@ function createLoginForm() {
 
     const loginContainer = document.createElement('div');
     loginContainer.id = 'login-container';
+    loginContainer.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+        background-color: #f5f5f5;
+    `;
+    
+    // 添加标题
+    const title = document.createElement('h1');
+    title.textContent = '人群协作寻优线上实验平台';
+    title.style.cssText = `
+        text-align: center;
+        margin: 40px 0;
+        color: #333;
+        font-size: 28px;
+        font-weight: bold;
+    `;
+    loginContainer.appendChild(title);
+
+    // 创建主要内容区域
+    const mainContent = document.createElement('div');
+    mainContent.style.cssText = `
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        gap: 40px;
+    `;
+
+    // 创建登录表单容器
+    const formContainer = document.createElement('div');
+    formContainer.style.cssText = `
+        flex: 1;
+        max-width: 400px;
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    `;
+
+    // 添加提示信息
+    const tips = document.createElement('div');
+    tips.className = 'login-tips';
+    tips.style.cssText = `
+        width: 300px;
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    `;
+    tips.innerHTML = `
+        <h3 style="margin: 0 0 15px 0; color: #333;">实验说明</h3>
+        <div class="tip-item" style="margin-bottom: 10px;">1. 姓名填自己的名字拼音</div>
+        <div class="tip-item" style="margin-bottom: 10px;">2. 不要勾选管理员登录</div>
+        <div class="tip-item" style="margin-bottom: 10px;">3. 登录完成后，管理员点击开始，才能移动</div>
+    `;
 
     const loginForm = document.createElement('form');
     loginForm.id = `login-form-${uniqueId}`;
+    loginForm.className = 'login-form';
+    loginForm.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    `;
     loginForm.innerHTML = `
-        <h2>实验登录</h2>
-        <div class="form-group">
-            <label for="participant-name-${uniqueId}">参与者姓名</label>
-            <input type="text" id="participant-name-${uniqueId}" placeholder="请输入您的姓名" required>
+        <div class="form-group" style="display: flex; flex-direction: column; gap: 8px;">
+            <label for="participant-name" style="color: #666;">姓名:</label>
+            <input type="text" id="participant-name" required style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
         </div>
-        <div class="form-group">
-            <label for="experiment-id-${uniqueId}">实验ID</label>
-            <input type="text" id="experiment-id-${uniqueId}" placeholder="请输入实验ID" required>
+        <div class="form-group" style="display: flex; flex-direction: column; gap: 8px;">
+            <label for="experiment-id" style="color: #666;">实验ID:</label>
+            <input type="text" id="experiment-id" required style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
         </div>
-        <div class="checkbox-group">
-            <input type="checkbox" id="is-admin-${uniqueId}">
-            <label for="is-admin-${uniqueId}">管理员登录</label>
+        <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="is-admin">
+            <label for="is-admin" style="color: #666;">管理员登录</label>
         </div>
-        <div class="form-group admin-password" id="admin-password-group-${uniqueId}">
-            <label for="admin-password-${uniqueId}">管理员密码</label>
-            <input type="password" id="admin-password-${uniqueId}" placeholder="请输入管理员密码">
-            <div class="error-message" id="password-error-${uniqueId}">密码错误，请重试</div>
+        <div id="admin-password-group" style="display: none;">
+            <div class="form-group" style="display: flex; flex-direction: column; gap: 8px;">
+                <label for="admin-password" style="color: #666;">管理员密码:</label>
+                <input type="password" id="admin-password" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <div id="password-error" style="color: red; font-size: 14px; display: none;">密码错误</div>
+            </div>
         </div>
-        <button type="submit">加入实验</button>
+        <button type="submit" style="
+            padding: 10px 20px;
+            background-color: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        ">加入实验</button>
     `;
 
-    // 添加管理员复选框事件监听器
-    const adminCheckbox = loginForm.querySelector(`#is-admin-${uniqueId}`);
-    adminCheckbox.addEventListener('change', (e) => {
-        const adminPasswordGroup = loginForm.querySelector(`#admin-password-group-${uniqueId}`);
-        if (e.target.checked) {
-            adminPasswordGroup.classList.add('visible');
-        } else {
-            adminPasswordGroup.classList.remove('visible');
-        }
+    // 添加管理员密码输入框的显示/隐藏逻辑
+    const isAdminCheckbox = loginForm.querySelector('#is-admin');
+    const adminPasswordGroup = loginForm.querySelector('#admin-password-group');
+    const passwordError = loginForm.querySelector('#password-error');
+
+    isAdminCheckbox.addEventListener('change', (e) => {
+        adminPasswordGroup.style.display = e.target.checked ? 'block' : 'none';
+        passwordError.style.display = 'none';
     });
+
+    // 组装内容
+    formContainer.appendChild(loginForm);
+    mainContent.appendChild(formContainer);
+    mainContent.appendChild(tips);
+    loginContainer.appendChild(mainContent);
 
     // 添加表单提交事件监听器
     loginForm.addEventListener('submit', function handleSubmit(e) {
         e.preventDefault();
         e.stopPropagation();
         
-        // 获取表单中的值，使用正确的唯一ID
-        const participantName = loginForm.querySelector(`#participant-name-${uniqueId}`).value.trim();
-        const experimentId = loginForm.querySelector(`#experiment-id-${uniqueId}`).value.trim();
-        const isAdminChecked = loginForm.querySelector(`#is-admin-${uniqueId}`).checked;
-        const adminPassword = loginForm.querySelector(`#admin-password-${uniqueId}`)?.value || '';
+        // 获取表单中的值
+        const participantName = loginForm.querySelector('#participant-name').value.trim();
+        const experimentId = loginForm.querySelector('#experiment-id').value.trim();
+        const isAdminChecked = loginForm.querySelector('#is-admin').checked;
+        const adminPassword = loginForm.querySelector('#admin-password')?.value || '';
 
         // 验证表单
         if (!participantName || !experimentId) {
@@ -85,19 +166,13 @@ function createLoginForm() {
         if (isAdminChecked) {
             const correctPassword = '785509';
             if (adminPassword !== correctPassword) {
-                const errorElement = loginForm.querySelector(`#password-error-${uniqueId}`);
-                if (errorElement) {
-                    errorElement.classList.add('visible');
-                }
+                passwordError.style.display = 'block';
                 return;
             }
         }
 
-        // 隐藏错误信息（如果存在）
-        const errorElement = loginForm.querySelector(`#password-error-${uniqueId}`);
-        if (errorElement) {
-            errorElement.classList.remove('visible');
-        }
+        // 隐藏错误信息
+        passwordError.style.display = 'none';
 
         // 设置全局isAdmin变量
         isAdmin = isAdminChecked;
@@ -109,6 +184,7 @@ function createLoginForm() {
             const submitButton = loginForm.querySelector('button[type="submit"]');
             if (submitButton) {
                 submitButton.disabled = true;
+                submitButton.style.backgroundColor = '#ccc';
             }
 
             socket.emit('join-experiment', {
@@ -122,7 +198,6 @@ function createLoginForm() {
         }
     });
 
-    loginContainer.appendChild(loginForm);
     document.body.appendChild(loginContainer);
 }
 
