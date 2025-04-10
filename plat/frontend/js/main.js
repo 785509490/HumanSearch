@@ -746,10 +746,11 @@ function setupParticipantUI(container) {
         <div style="color: #666; line-height: 1.6;">
             <div style="margin-bottom: 10px;">1. 蓝色的点是你自己</div>
             <div style="margin-bottom: 10px;">2. 绿色的点是其他参与者</div>
-            <div style="margin-bottom: 10px;">3. 信号值越大越好</div>
-            <div style="margin-bottom: 10px;">4. 你可以看到感知范围内的其他人的信号</div>
-            <div style="margin-bottom: 10px;">5. 实验开始后你可以自由移动</div>
-            <div style="margin-bottom: 10px;">6. 尽你所能找出最大的信号值</div>
+            <div style="margin-bottom: 10px;">3. 红色的点是当前感知范围内信号值最大的人</div>
+            <div style="margin-bottom: 10px;">4. 信号值越大越好</div>
+            <div style="margin-bottom: 10px;">5. 你可以看到感知范围内的其他人的信号</div>
+            <div style="margin-bottom: 10px;">6. 实验开始后你可以自由移动</div>
+            <div style="margin-bottom: 10px;">7. 尽你所能找出最大的信号值</div>
         </div>
     `;
     container.appendChild(rulesPanel);
