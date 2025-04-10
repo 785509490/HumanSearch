@@ -386,6 +386,22 @@ function setupSocketListeners() {
         }
         
         if (game) {
+            // 确保更新全局最优点位置
+            if (data.globalOptimal) {
+                game.globalOptimal = data.globalOptimal;
+            }
+            
+            // 在实验开始时重新计算本地玩家的信号值并与服务器保持一致
+            game.player.signalValue = game.calculateSignalValue(game.player.x, game.player.y);
+            console.log('实验开始时重新计算的本地信号值:', game.player.signalValue);
+            
+            // 向服务器同步最新的位置和信号值
+            game.socket.emit('player-move', {
+                x: game.player.x,
+                y: game.player.y,
+                signalValue: game.player.signalValue
+            });
+            
             game.updatePerceptionRange(perceptionRange);
             game.start();
         }
@@ -420,15 +436,24 @@ function setupSocketListeners() {
     // 监听全局最优点更新
     socket.on('global-optimal-update', (data) => {
         console.log('收到全局最优点更新:', data);
-        if (game) {
-            // 更新游戏中的全局最优点位置
-            game.globalOptimal = data.globalOptimal;
+        
+        // 保存最新的全局最优点位置，即使游戏实例尚未初始化
+        if (data.globalOptimal) {
+            // 如果游戏实例已初始化，则更新游戏中的全局最优点位置
+            if (game) {
+                game.globalOptimal = data.globalOptimal;
+                
+                // 重新计算当前玩家的信号值
+                game.player.signalValue = game.calculateSignalValue(game.player.x, game.player.y);
+                
+                // 更新热力图
+                game.drawHeatmap();
+            }
             
-            // 重新计算当前玩家的信号值
-            game.player.signalValue = game.calculateSignalValue(game.player.x, game.player.y);
-            
-            // 更新热力图
-            game.drawHeatmap();
+            // 发送确认消息
+            socket.emit('global-optimal-update-confirmed', {
+                updateId: data.updateId
+            });
         }
     });
 
@@ -701,6 +726,33 @@ function setupParticipantUI(container) {
         <ul id="nearby-participants"></ul>
     `;
     container.appendChild(infoPanel);
+
+    // 添加游戏规则提示面板
+    const rulesPanel = document.createElement('div');
+    rulesPanel.id = 'rules-panel';
+    rulesPanel.style.cssText = `
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background-color: rgba(255, 255, 255, 0.9);
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        max-width: 300px;
+        z-index: 1000;
+    `;
+    rulesPanel.innerHTML = `
+        <h3 style="margin: 0 0 15px 0; color: #333;">游戏规则</h3>
+        <div style="color: #666; line-height: 1.6;">
+            <div style="margin-bottom: 10px;">1. 蓝色的点是你自己</div>
+            <div style="margin-bottom: 10px;">2. 绿色的点是其他参与者</div>
+            <div style="margin-bottom: 10px;">3. 信号值越大越好</div>
+            <div style="margin-bottom: 10px;">4. 你可以看到感知范围内的其他人的信号</div>
+            <div style="margin-bottom: 10px;">5. 实验开始后你可以自由移动</div>
+            <div style="margin-bottom: 10px;">6. 尽你所能找出最大的信号值</div>
+        </div>
+    `;
+    container.appendChild(rulesPanel);
     
     game = new Game(canvas, socket, perceptionRange);
     game.setAdmin(false); // 设置为参与者模式

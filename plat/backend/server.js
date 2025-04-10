@@ -82,14 +82,20 @@ let currentExperiment = {
     // 添加局部最优点状态
     localOptima: [
         { x: 0.2 * 800, y: 0.3 * 600, baseX: 0.2 * 800, baseY: 0.3 * 600, strength: 0.4 },
-        { x: 0.8 * 800, y: 0.3 * 600, baseX: 0.8 * 800, baseY: 0.3 * 600, strength: 0.5 },
+        { x: 0.8 * 800, y: 0.3 * 600, baseX: 0.8 * 800, baseY: 0.8 * 600, strength: 0.5 },
         { x: 0.3 * 800, y: 0.8 * 600, baseX: 0.3 * 800, baseY: 0.8 * 600, strength: 0.3 },
         { x: 0.7 * 800, y: 0.7 * 600, baseX: 0.7 * 800, baseY: 0.7 * 600, strength: 0.45 }
     ],
     // 添加最后记录时间映射
     lastRecordTime: new Map(),
     // 添加最后广播时间映射
-    lastBroadcastTime: new Map()
+    lastBroadcastTime: new Map(),
+    // 添加全局最优点更新确认映射
+    globalOptimalUpdateConfirmed: new Map(),
+    // 添加全局最优点更新重试次数
+    globalOptimalUpdateRetries: 0,
+    // 添加全局最优点更新最大重试次数
+    maxGlobalOptimalUpdateRetries: 3
 };
 
 // 计算信号值函数 - 多峰函数
@@ -126,8 +132,9 @@ function calculateSignalValue(position) {
     // 全局最优点的影响更强，确保它是真正的全局最优
     const combinedInfluence = 0.8 * globalInfluence + 0.2 * localInfluence;
     
-    // 转换为0-100范围的信号值，值越小表示越接近最优
-    return 100 * (1 - combinedInfluence);
+    // 将0-1范围的值放大到0-152范围，让参与者感觉没有明确上限
+    // 此处152是一个魔法数字，目的是让显示的值看起来没有明显的上限
+    return combinedInfluence * 152;
 }
 
 // 修改局部最优点扰动函数
@@ -707,9 +714,14 @@ io.on('connection', (socket) => {
             participant.signalValue = calculateSignalValue(participant.position);
         });
         
+        // 重置确认映射和重试次数
+        currentExperiment.globalOptimalUpdateConfirmed.clear();
+        currentExperiment.globalOptimalUpdateRetries = 0;
+        
         // 广播更新给所有客户端
         io.emit('global-optimal-update', {
-            globalOptimal: currentExperiment.globalOptimal
+            globalOptimal: currentExperiment.globalOptimal,
+            updateId: Date.now() // 添加更新ID用于确认
         });
         
         // 广播更新后的参与者信号值
@@ -720,6 +732,65 @@ io.on('connection', (socket) => {
                 position: participant.position,
                 signalValue: participant.signalValue
             });
+        });
+        
+        // 设置重试定时器
+        setTimeout(() => {
+            // 检查是否所有参与者都确认了更新
+            const allConfirmed = Array.from(currentExperiment.participants.keys()).every(
+                socketId => currentExperiment.globalOptimalUpdateConfirmed.get(socketId)
+            );
+            
+            // 如果有参与者没有确认，且未超过最大重试次数，则重新发送更新
+            if (!allConfirmed && currentExperiment.globalOptimalUpdateRetries < currentExperiment.maxGlobalOptimalUpdateRetries) {
+                console.log('部分参与者未确认全局最优点更新，重新发送...');
+                currentExperiment.globalOptimalUpdateRetries++;
+                
+                // 重新广播更新给所有客户端
+                io.emit('global-optimal-update', {
+                    globalOptimal: currentExperiment.globalOptimal,
+                    updateId: Date.now() // 新的更新ID
+                });
+                
+                // 重新设置重试定时器
+                setTimeout(() => {
+                    // 再次检查确认情况
+                    const stillNotConfirmed = Array.from(currentExperiment.participants.keys()).some(
+                        socketId => !currentExperiment.globalOptimalUpdateConfirmed.get(socketId)
+                    );
+                    
+                    if (stillNotConfirmed) {
+                        console.log('仍有参与者未确认全局最优点更新，尝试最后一次重试...');
+                        currentExperiment.globalOptimalUpdateRetries++;
+                        
+                        // 最后一次重试
+                        io.emit('global-optimal-update', {
+                            globalOptimal: currentExperiment.globalOptimal,
+                            updateId: Date.now()
+                        });
+                    }
+                }, 2000); // 2秒后再次检查
+            }
+        }, 2000); // 2秒后检查确认情况
+    });
+
+    // 处理全局最优点更新确认
+    socket.on('global-optimal-update-confirmed', (data) => {
+        const { updateId } = data;
+        console.log('收到全局最优点更新确认:', socket.id, updateId);
+        
+        // 标记该参与者已确认更新
+        currentExperiment.globalOptimalUpdateConfirmed.set(socket.id, true);
+    });
+
+    // 处理请求全局最优点位置
+    socket.on('request-global-optimal', () => {
+        console.log('收到请求全局最优点位置:', socket.id);
+        
+        // 发送当前的全局最优点位置
+        socket.emit('global-optimal-update', {
+            globalOptimal: currentExperiment.globalOptimal,
+            updateId: Date.now()
         });
     });
 
@@ -736,15 +807,69 @@ io.on('connection', (socket) => {
         const newGlobalOptimal = randomizeGlobalOptimal();
         console.log('全局最优点已随机变化:', newGlobalOptimal);
         
+        // 重置确认映射和重试次数
+        currentExperiment.globalOptimalUpdateConfirmed.clear();
+        currentExperiment.globalOptimalUpdateRetries = 0;
+        
         // 广播更新给所有客户端
         io.emit('global-optimal-update', {
-            globalOptimal: newGlobalOptimal
+            globalOptimal: newGlobalOptimal,
+            updateId: Date.now() // 添加更新ID用于确认
         });
         
         // 重新计算所有参与者的信号值
         currentExperiment.participants.forEach((participant) => {
             participant.signalValue = calculateSignalValue(participant.position);
         });
+        
+        // 广播更新后的参与者信号值
+        currentExperiment.participants.forEach((participant) => {
+            io.emit('player-update', {
+                participantId: participant.id,
+                name: participant.name,
+                position: participant.position,
+                signalValue: participant.signalValue
+            });
+        });
+        
+        // 设置重试定时器
+        setTimeout(() => {
+            // 检查是否所有参与者都确认了更新
+            const allConfirmed = Array.from(currentExperiment.participants.keys()).every(
+                socketId => currentExperiment.globalOptimalUpdateConfirmed.get(socketId)
+            );
+            
+            // 如果有参与者没有确认，且未超过最大重试次数，则重新发送更新
+            if (!allConfirmed && currentExperiment.globalOptimalUpdateRetries < currentExperiment.maxGlobalOptimalUpdateRetries) {
+                console.log('部分参与者未确认全局最优点更新，重新发送...');
+                currentExperiment.globalOptimalUpdateRetries++;
+                
+                // 重新广播更新给所有客户端
+                io.emit('global-optimal-update', {
+                    globalOptimal: newGlobalOptimal,
+                    updateId: Date.now() // 新的更新ID
+                });
+                
+                // 重新设置重试定时器
+                setTimeout(() => {
+                    // 再次检查确认情况
+                    const stillNotConfirmed = Array.from(currentExperiment.participants.keys()).some(
+                        socketId => !currentExperiment.globalOptimalUpdateConfirmed.get(socketId)
+                    );
+                    
+                    if (stillNotConfirmed) {
+                        console.log('仍有参与者未确认全局最优点更新，尝试最后一次重试...');
+                        currentExperiment.globalOptimalUpdateRetries++;
+                        
+                        // 最后一次重试
+                        io.emit('global-optimal-update', {
+                            globalOptimal: newGlobalOptimal,
+                            updateId: Date.now()
+                        });
+                    }
+                }, 2000); // 2秒后再次检查
+            }
+        }, 2000); // 2秒后检查确认情况
     });
 
     // 处理清除实验数据请求

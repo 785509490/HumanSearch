@@ -58,6 +58,9 @@ export class Game {
             signalValue: this.player.signalValue
         });
         
+        // 请求最新的全局最优点位置
+        this.socket.emit('request-global-optimal');
+        
         console.log('游戏初始化完成', {
             position: { x: this.player.x, y: this.player.y },
             signalValue: this.player.signalValue,
@@ -120,6 +123,33 @@ export class Game {
     }
     
     calculateSignalValue(x, y) {
+        // 全局最优点的信号值计算
+        const globalDistance = Math.sqrt(
+            Math.pow(x - this.globalOptimal.x, 2) + 
+            Math.pow(y - this.globalOptimal.y, 2)
+        );
+        const globalSignal = Math.exp(-globalDistance * globalDistance / (2 * Math.pow(100, 2)));
+        
+        // 局部最优点的信号值计算
+        let localSignals = this.localOptima.map(peak => {
+            const distance = Math.sqrt(
+                Math.pow(x - peak.x, 2) + 
+                Math.pow(y - peak.y, 2)
+            );
+            return peak.strength * Math.exp(-distance * distance / (2 * Math.pow(80, 2)));
+        });
+        
+        // 合并全局和局部信号
+        const allSignals = [globalSignal, ...localSignals];
+        const originalValue = Math.max(...allSignals);
+        
+        // 将0-1范围的值放大到0-152范围，让参与者感觉没有明确上限
+        // 此处152是一个魔法数字，目的是让显示的值看起来没有明显的上限
+        return originalValue * 152;
+    }
+    
+    // 增加一个内部方法，计算原始比例(0-1)的信号值，用于热力图渲染
+    _calculateOriginalScaleSignalValue(x, y) {
         // 全局最优点的信号值计算
         const globalDistance = Math.sqrt(
             Math.pow(x - this.globalOptimal.x, 2) + 
@@ -291,13 +321,32 @@ export class Game {
             this.drawPerceptionRange();
         }
         
+        // 找出感知范围内信号值比自己大的参与者中，信号值最大的那个
+        let maxSignalPlayer = null;
+        let maxSignalValue = this.player.signalValue;
+        
+        if (this.isRunning) {
+            this.otherPlayers.forEach((player) => {
+                const distance = this.getDistance(player);
+                if (distance <= this.perceptionRange && player.signalValue > maxSignalValue) {
+                    maxSignalValue = player.signalValue;
+                    maxSignalPlayer = player;
+                }
+            });
+        }
+        
         // 绘制所有其他玩家
         this.otherPlayers.forEach((player) => {
-            this.drawPlayer(player, false);
+            // 如果这个玩家是感知范围内信号值最大的，则用红色绘制
+            if (maxSignalPlayer && player === maxSignalPlayer) {
+                this.drawPlayer(player, false, true);
+            } else {
+                this.drawPlayer(player, false, false);
+            }
         });
         
         // 绘制当前玩家
-        this.drawPlayer(this.player, true);
+        this.drawPlayer(this.player, true, false);
     }
     
     drawGrid() {
@@ -330,7 +379,7 @@ export class Game {
         this.ctx.fill();
     }
     
-    drawPlayer(player, isCurrentPlayer) {
+    drawPlayer(player, isCurrentPlayer, isMaxSignal) {
         if (!player || typeof player.x !== 'number' || typeof player.y !== 'number') {
             console.error('无效的玩家数据:', player);
             return;
@@ -341,7 +390,16 @@ export class Game {
         // 始终绘制玩家圆圈和名字
         this.ctx.beginPath();
         this.ctx.arc(player.x, player.y, size, 0, Math.PI * 2);
-        this.ctx.fillStyle = isCurrentPlayer ? '#1a73e8' : '#34a853';
+        
+        // 设置颜色：当前玩家蓝色，最大信号值玩家红色，其他玩家绿色
+        if (isCurrentPlayer) {
+            this.ctx.fillStyle = '#1a73e8';
+        } else if (isMaxSignal) {
+            this.ctx.fillStyle = '#e53935'; // 红色
+        } else {
+            this.ctx.fillStyle = '#34a853';
+        }
+        
         this.ctx.fill();
         
         // 如果是当前玩家，添加高亮边框
@@ -386,7 +444,8 @@ export class Game {
         // 绘制热力图
         for (let x = 0; x < width; x += resolution) {
             for (let y = 0; y < height; y += resolution) {
-                const value = this.calculateSignalValue(x, y);
+                // 使用原始比例的信号值(0-1)用于热力图渲染
+                const value = this._calculateOriginalScaleSignalValue(x, y);
                 const intensity = Math.min(255, Math.round(value * 255));
                 
                 this.ctx.fillStyle = `rgba(255, ${255 - intensity}, ${255 - intensity}, 0.3)`;
